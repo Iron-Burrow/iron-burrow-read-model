@@ -32,7 +32,7 @@ class PriceTrendRow:
     result_metadata: dict[str, Any]
 
 
-def append_history_and_upsert_latest(conn: Connection, rows: Sequence[PriceTrendRow]) -> int:
+def append_price_trend_history(conn: Connection, rows: Sequence[PriceTrendRow]) -> int:
     for row in rows:
         params = (
             row.asset_slug,
@@ -67,6 +67,32 @@ def append_history_and_upsert_latest(conn: Connection, rows: Sequence[PriceTrend
             """,
             params,
         )
+    return len(rows)
+
+
+def upsert_price_trend_latest(conn: Connection, rows: Sequence[PriceTrendRow]) -> int:
+    for row in rows:
+        params = (
+            row.asset_slug,
+            row.asset_symbol,
+            row.quote_currency,
+            row.window,
+            row.granularity,
+            row.trend_direction,
+            row.trend_strength,
+            row.confidence,
+            row.price_start,
+            row.price_end,
+            row.change_pct,
+            row.sample_count,
+            row.from_timestamp,
+            row.to_timestamp,
+            row.computed_at,
+            row.model_version,
+            row.job_run_id,
+            Jsonb(row.input_metadata),
+            Jsonb(row.result_metadata),
+        )
         conn.execute(
             """
             INSERT INTO read_model.price_trend_latest (
@@ -95,4 +121,10 @@ def append_history_and_upsert_latest(conn: Connection, rows: Sequence[PriceTrend
             """,
             params,
         )
+    return len(rows)
+
+
+def append_history_and_upsert_latest(conn: Connection, rows: Sequence[PriceTrendRow]) -> int:
+    append_price_trend_history(conn, rows)
+    upsert_price_trend_latest(conn, rows)
     return len(rows)

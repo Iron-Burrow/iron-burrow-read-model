@@ -63,6 +63,17 @@ def mark_job_succeeded(
     )
 
 
+def merge_job_metadata(conn: Connection, *, job_run_id: UUID, metadata: dict[str, Any]) -> None:
+    conn.execute(
+        """
+        UPDATE read_model.job_run
+        SET metadata = metadata || %s
+        WHERE job_run_id = %s
+        """,
+        (Jsonb(metadata), job_run_id),
+    )
+
+
 def mark_job_failed(conn: Connection, *, job_run_id: UUID, error_message: str) -> None:
     conn.execute(
         """

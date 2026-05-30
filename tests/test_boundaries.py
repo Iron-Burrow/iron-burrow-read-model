@@ -38,3 +38,11 @@ def test_price_source_uses_httpx_not_direct_price_indexer_sql() -> None:
     assert "httpx" in source
     assert "price_indexer." not in source
     assert "price_ticks" not in source
+
+
+def test_trend_repository_exposes_separate_history_and_latest_writes() -> None:
+    source = (ROOT / "src/ib_read_model/repositories/price_trend_repo.py").read_text(encoding="utf-8")
+    assert "def append_price_trend_history" in source
+    assert "read_model.price_trend_history" in source
+    assert "def upsert_price_trend_latest" in source
+    assert "read_model.price_trend_latest" in source

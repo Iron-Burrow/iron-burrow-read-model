@@ -9,13 +9,24 @@ from ib_read_model.config import get_settings
 
 
 @contextmanager
+def connect_hot() -> Iterator[Connection]:
+    with psycopg.connect(get_settings().hot_database_url, row_factory=dict_row) as conn:
+        yield conn
+
+
+@contextmanager
+def connect_warm() -> Iterator[Connection]:
+    with psycopg.connect(get_settings().warm_database_url, row_factory=dict_row) as conn:
+        yield conn
+
+
+@contextmanager
 def connect() -> Iterator[Connection]:
-    with psycopg.connect(get_settings().database_url, row_factory=dict_row) as conn:
+    with connect_hot() as conn:
         yield conn
 
 
 @contextmanager
 def connect_source() -> Iterator[Connection]:
-    settings = get_settings()
-    with psycopg.connect(settings.source_database_url or settings.database_url, row_factory=dict_row) as conn:
+    with connect_warm() as conn:
         yield conn

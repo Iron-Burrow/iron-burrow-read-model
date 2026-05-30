@@ -39,17 +39,34 @@ uv run ib-read-model refresh-price-trends --window 7d --quote-currency BTC
 uv run ib-read-model refresh-all-prices
 ```
 
-## Databases
+## Hot/Warm Databases
 
-The service supports a simple hot/warm split:
+The service uses an explicit hot/warm split:
 
-- Hot DB: `IB_READ_MODEL_DATABASE_URL`; read-model projections are written here.
-- Warm IBDB: `IB_READ_MODEL_SOURCE_DATABASE_URL`; indexer-owned source schemas are read here.
+- Hot DB: `IB_READ_MODEL_HOT_DATABASE_URL`; current read-model projections are written here.
+- Warm IBDB: `IB_READ_MODEL_WARM_DATABASE_URL`; indexer-owned source schemas are read here, and history/audit rows are written here.
 
-For local development both URLs can point at the same Postgres container. In
-production, the hot DB can be a low-latency projections database such as Neon,
-while warm IBDB can remain on the VPS. A good purpose-based name for the hot DB
-is `ibdb_hot` or `iron_burrow_read_model_hot`, not `IBDB-prod`.
+The rule is simple: hot serves; warm remembers.
+
+For local development, Compose starts two Postgres containers:
+
+- `db_hot` with database `ibdb_hot`
+- `db_warm` with database `ibdb`
+
+In production, the hot DB should be a low-latency Neon database such as
+`ibdb_hot`, while warm IBDB can remain on the VPS. Avoid names like `IBDB-prod`
+for hot because that mixes environment with purpose.
+
+Hot tables:
+
+- `read_model.latest_price`
+- `read_model.price_stats_latest`
+- `read_model.price_trend_latest`
+
+Warm tables:
+
+- `read_model.job_run`
+- `read_model.price_trend_history`
 
 Cold storage is intentionally out of scope for the MVP. When added, it should be
 an archival sink for immutable history/backups, not the serving path for Mother
@@ -61,4 +78,12 @@ API.
 cp .env.example .env
 docker compose up --build app
 docker compose --profile worker up --build worker
+```
+
+Migration commands:
+
+```bash
+uv run ib-read-model migrate-hot
+uv run ib-read-model migrate-warm
+uv run ib-read-model migrate-all
 ```

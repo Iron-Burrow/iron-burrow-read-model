@@ -3,13 +3,13 @@ from typing import Annotated
 import typer
 
 from ib_read_model.config import get_settings
-from ib_read_model.db import connect
+from ib_read_model.db import connect_hot, connect_warm
 from ib_read_model.jobs import job_run
 from ib_read_model.migrations import run_migrations
 from ib_read_model.quotes import normalize_quote, parse_quotes
 from ib_read_model.repositories.latest_price_repo import replace_latest_prices
 from ib_read_model.repositories.price_stats_repo import upsert_price_stats
-from ib_read_model.repositories.price_trend_repo import append_history_and_upsert_latest
+from ib_read_model.repositories.price_trend_repo import append_price_trend_history, upsert_price_trend_latest
 from ib_read_model.services.latest_price import build_latest_price_rows
 from ib_read_model.services.price_stats import build_price_stats_rows
 from ib_read_model.services.price_trends import build_price_trend_rows
@@ -41,10 +41,31 @@ def _price_client() -> PriceIndexerQlClient:
 
 @app.command()
 def migrate() -> None:
-    """Apply plain SQL migrations."""
-    with connect() as conn:
-        count = run_migrations(conn)
-    typer.echo(f"Applied {count} migration files.")
+    """Compatibility alias for migrate-all."""
+    migrate_all()
+
+
+@app.command("migrate-hot")
+def migrate_hot() -> None:
+    """Apply hot DB migrations for current projections."""
+    with connect_hot() as conn:
+        count = run_migrations(conn, target="hot")
+    typer.echo(f"Applied {count} hot migration files.")
+
+
+@app.command("migrate-warm")
+def migrate_warm() -> None:
+    """Apply warm DB migrations for audit/history tables."""
+    with connect_warm() as conn:
+        count = run_migrations(conn, target="warm")
+    typer.echo(f"Applied {count} warm migration files.")
+
+
+@app.command("migrate-all")
+def migrate_all() -> None:
+    """Apply both hot and warm migrations."""
+    migrate_warm()
+    migrate_hot()
 
 
 @app.command("refresh-latest-prices")
@@ -55,9 +76,9 @@ def refresh_latest_prices(
     settings = get_settings()
     parsed_quotes = parse_quotes(quotes)
     asset_list = _assets(assets)
-    with connect() as conn:
+    with connect_warm() as warm_conn, connect_hot() as hot_conn:
         with job_run(
-            conn,
+            warm_conn,
             job_name="refresh-latest-prices",
             model_version=settings.model_version,
             source_schema="price-indexer-ql",
@@ -72,7 +93,9 @@ def refresh_latest_prices(
                 job_run_id=job.job_run_id,
             )
             job.rows_read = reads
-            job.rows_written = replace_latest_prices(conn, rows)
+            job.rows_written = replace_latest_prices(hot_conn, rows)
+            hot_conn.commit()
+            job.record_phase(hot_projection_written=True)
     typer.echo(f"Refreshed {job.rows_written} latest price rows.")
 
 
@@ -86,9 +109,9 @@ def refresh_price_stats(
     parsed_window = normalize_window(window)
     quote = normalize_quote(quote_currency)
     asset_list = _assets(assets)
-    with connect() as conn:
+    with connect_warm() as warm_conn, connect_hot() as hot_conn:
         with job_run(
-            conn,
+            warm_conn,
             job_name="refresh-price-stats",
             model_version=settings.model_version,
             source_schema="price-indexer-ql",
@@ -104,7 +127,9 @@ def refresh_price_stats(
                 job_run_id=job.job_run_id,
             )
             job.rows_read = reads
-            job.rows_written = upsert_price_stats(conn, rows)
+            job.rows_written = upsert_price_stats(hot_conn, rows)
+            hot_conn.commit()
+            job.record_phase(hot_projection_written=True)
     typer.echo(f"Refreshed {job.rows_written} price stats rows.")
 
 
@@ -119,9 +144,9 @@ def refresh_price_trends(
     parsed_window = normalize_window(window)
     quote = normalize_quote(quote_currency)
     asset_list = _assets(assets)
-    with connect() as conn:
+    with connect_warm() as warm_conn, connect_hot() as hot_conn:
         with job_run(
-            conn,
+            warm_conn,
             job_name="refresh-price-trends",
             model_version=settings.model_version,
             source_schema="price-indexer-ql",
@@ -143,7 +168,12 @@ def refresh_price_trends(
                 job_run_id=job.job_run_id,
             )
             job.rows_read = reads
-            job.rows_written = append_history_and_upsert_latest(conn, rows)
+            history_written = append_price_trend_history(warm_conn, rows)
+            job.record_phase(history_written=True, history_rows_written=history_written)
+            latest_written = upsert_price_trend_latest(hot_conn, rows)
+            hot_conn.commit()
+            job.record_phase(hot_projection_written=True, hot_rows_written=latest_written)
+            job.rows_written = history_written + latest_written
     typer.echo(f"Refreshed {job.rows_written} price trend rows.")
 
 

@@ -9,14 +9,20 @@ from ib_read_model.repositories.job_run_repo import (
     create_job_run,
     mark_job_failed,
     mark_job_succeeded,
+    merge_job_metadata,
 )
 
 
 class JobContext:
-    def __init__(self, job_run_id: UUID) -> None:
+    def __init__(self, conn: Connection, job_run_id: UUID) -> None:
+        self.conn = conn
         self.job_run_id = job_run_id
         self.rows_read = 0
         self.rows_written = 0
+
+    def record_phase(self, **metadata: Any) -> None:
+        merge_job_metadata(self.conn, job_run_id=self.job_run_id, metadata=metadata)
+        self.conn.commit()
 
 
 @contextmanager
@@ -38,7 +44,7 @@ def job_run(
         metadata=metadata,
     )
     conn.commit()
-    context = JobContext(job_run_id)
+    context = JobContext(conn, job_run_id)
     try:
         yield context
     except Exception as exc:

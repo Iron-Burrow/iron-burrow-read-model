@@ -70,6 +70,7 @@ Production deployments should use unprefixed names for clarity:
 - `WARM_DATABASE_URL` — Warm/source database URL (must be non-localhost in production)
 - `PRICE_INDEXER_QL_BASE_URL` — Price-indexer QL endpoint URL
 - `PRICE_INDEXER_QL_BEARER_TOKEN` — Shared secret for QL authentication
+- `READ_MODEL_TAG` — Docker image tag for GHCR deployments (e.g., `v1.0.0`, default: `latest`)
 
 **Optional:**
 - `APP_ENV` — Application environment (default: `development`)
@@ -154,6 +155,38 @@ The service runs as an internal worker on the `iron-burrow-net` Docker network. 
    openssl rand -base64 32
    ```
 
+### Docker Image
+
+The service is published to GitHub Container Registry on tagged releases (e.g., `v1.0.0`).
+
+**Available at**: `ghcr.io/<owner>/iron-burrow-read-model:<version>`
+
+The image supports all CLI commands via the Docker `CMD`. Examples:
+
+```bash
+# Run migrations
+docker run --rm --env-file .env.prod \
+  ghcr.io/<owner>/iron-burrow-read-model:v1.0.0 \
+  migrate-all
+
+# Start worker
+docker run -d --name read-model-worker --env-file .env.prod \
+  ghcr.io/<owner>/iron-burrow-read-model:v1.0.0 \
+  run-worker
+
+# Run healthcheck
+docker run --rm --env-file .env.prod \
+  ghcr.io/<owner>/iron-burrow-read-model:v1.0.0 \
+  healthcheck
+
+# One-shot price refresh
+docker run --rm --env-file .env.prod \
+  ghcr.io/<owner>/iron-burrow-read-model:v1.0.0 \
+  refresh-all-prices
+```
+
+**Image publishing**: Images are automatically built and pushed on Git tags matching `v*.*.*` via GitHub Actions. See [.github/workflows/publish-docker.yml](.github/workflows/publish-docker.yml).
+
 ### Deployment
 
 1. **Set required environment variables**:
@@ -162,21 +195,26 @@ The service runs as an internal worker on the `iron-burrow-net` Docker network. 
    export WARM_DATABASE_URL='postgresql://user:pass@vps.example.com:5432/ibdb?sslmode=require'
    export PRICE_INDEXER_QL_BASE_URL='http://iron-burrow-price-indexer:3010'
    export PRICE_INDEXER_QL_BEARER_TOKEN='<shared-secret>'
+   export READ_MODEL_TAG='v1.0.0'
    export APP_ENV='production'
    export LOG_LEVEL='INFO'
    ```
 
    Or use a `.env.prod` file (gitignored):
    ```bash
-   cp .env.prod.example .env.prod
+   cp .env.production.example .env.prod
    # Edit .env.prod with real values
    export $(cat .env.prod | xargs)
    ```
 
 2. **Deploy with Docker Compose**:
+   
+   The production compose file uses the published GHCR image by default:
    ```bash
-   docker compose -f compose.prod.yaml up -d --build
+   docker compose -f compose.prod.yaml up -d
    ```
+   
+   To build locally instead, edit `compose.prod.yaml` to replace the `image:` section with `build:`.
 
 3. **Verify deployment**:
    ```bash

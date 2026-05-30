@@ -6,6 +6,7 @@
 #   WARM_DATABASE_URL             - Non-localhost warm/source database URL
 #   PRICE_INDEXER_QL_BASE_URL     - Price indexer QL endpoint (internal or VPN)
 #   PRICE_INDEXER_QL_BEARER_TOKEN - Shared secret for QL authentication
+#   READ_MODEL_TAG                - Docker image tag from GHCR (e.g., v1.0.0)
 #
 # Optional environment variables:
 #   APP_ENV                - Application environment (default: production)
@@ -17,12 +18,16 @@
 #   MODEL_VERSION          - Model version identifier (default: price_read_model_v1)
 #
 # Deploy:
-#   docker compose -f compose.prod.yaml up -d --build
+#   docker compose -f compose.prod.yaml up -d
+#
+# To build locally instead of using published GHCR image, replace the `image`
+# section with:
+#   build:
+#     context: .
 
 services:
   iron-burrow-read-model:
-    build:
-      context: .
+    image: ghcr.io/iron-burrow/iron-burrow-read-model:${READ_MODEL_TAG:-latest}
     restart: unless-stopped
     networks:
       - iron-burrow-net

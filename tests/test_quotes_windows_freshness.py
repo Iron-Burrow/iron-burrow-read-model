@@ -20,6 +20,10 @@ def test_supported_quotes_include_usdc() -> None:
     ]
 
 
+def test_parse_quotes_normalizes_and_deduplicates() -> None:
+    assert [quote.currency for quote in parse_quotes(" usd,MXN,usd ")] == ["USD", "MXN"]
+
+
 def test_unsupported_quote_is_rejected() -> None:
     with pytest.raises(ValueError, match="Unsupported quote currency"):
         normalize_quote("EUR")

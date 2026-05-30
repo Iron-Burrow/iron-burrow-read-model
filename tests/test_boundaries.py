@@ -46,3 +46,10 @@ def test_trend_repository_exposes_separate_history_and_latest_writes() -> None:
     assert "read_model.price_trend_history" in source
     assert "def upsert_price_trend_latest" in source
     assert "read_model.price_trend_latest" in source
+
+
+def test_price_cli_uses_mother_api_asset_source() -> None:
+    source = (ROOT / "src/ib_read_model/cli.py").read_text(encoding="utf-8")
+    assert 'PRICE_ASSET_SOURCE = "mother_api.global_asset"' in source
+    assert "source_tables_used=PRICE_SOURCE_TABLES" in source
+    assert "--assets" not in source

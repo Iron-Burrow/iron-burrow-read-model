@@ -1,25 +1,56 @@
-services:
-  app:
-    build:
-      context: .
-    restart: "no"
-    env_file:
-      - path: .env.production
-        required: false
-    command: ["migrate-all"]
+# Production deployment configuration for iron-burrow-read-model.
+# Requires external iron-burrow-net Docker network and environment variables.
+#
+# Required environment variables:
+#   HOT_DATABASE_URL              - Non-localhost hot/read-model database URL
+#   WARM_DATABASE_URL             - Non-localhost warm/source database URL
+#   PRICE_INDEXER_QL_BASE_URL     - Price indexer QL endpoint (internal or VPN)
+#   PRICE_INDEXER_QL_BEARER_TOKEN - Shared secret for QL authentication
+#   READ_MODEL_TAG                - Docker image tag from GHCR (e.g., v1.0.0)
+#
+# Optional environment variables:
+#   APP_ENV                - Application environment (default: production)
+#   LOG_LEVEL              - Logging level (default: INFO)
+#   RUN_INTERVAL_SECONDS   - Worker loop interval (default: 300)
+#   HTTP_TIMEOUT_SECONDS   - HTTP client timeout (default: 10)
+#   DB_POOL_MIN_SIZE       - Database pool min size (default: 1)
+#   DB_POOL_MAX_SIZE       - Database pool max size (default: 10)
+#   MODEL_VERSION          - Model version identifier (default: price_read_model_v1)
+#
+# Deploy:
+#   docker compose -f compose.prod.yaml up -d
+#
+# To build locally instead of using published GHCR image, replace the `image`
+# section with:
+#   build:
+#     context: .
 
-  worker:
-    build:
-      context: .
+services:
+  iron-burrow-read-model:
+    image: ghcr.io/iron-burrow/iron-burrow-read-model:${READ_MODEL_TAG:-latest}
     restart: unless-stopped
-    env_file:
-      - path: .env.production
-        required: false
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - >
-        uv run --no-dev ib-read-model migrate-all &&
-        while true; do
-          uv run --no-dev ib-read-model refresh-all-prices;
-          sleep "$${IB_READ_MODEL_REFRESH_INTERVAL_SECONDS:-300}";
-        done
+    networks:
+      - iron-burrow-net
+    command: ["run-worker"]
+    healthcheck:
+      test: ["CMD", "uv", "run", "--no-dev", "ib-read-model", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      HOT_DATABASE_URL: ${HOT_DATABASE_URL}
+      WARM_DATABASE_URL: ${WARM_DATABASE_URL}
+      PRICE_INDEXER_QL_BASE_URL: ${PRICE_INDEXER_QL_BASE_URL}
+      PRICE_INDEXER_QL_BEARER_TOKEN: ${PRICE_INDEXER_QL_BEARER_TOKEN}
+      RUN_INTERVAL_SECONDS: ${RUN_INTERVAL_SECONDS:-300}
+      HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-10}
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-10}
+      MODEL_VERSION: ${MODEL_VERSION:-price_read_model_v1}
+
+networks:
+  iron-burrow-net:
+    external: true

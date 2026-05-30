@@ -83,3 +83,36 @@ def test_job_run_status_contract() -> None:
         "model_version",
     ]:
         assert column in sql
+
+
+def test_job_status_migration_exists() -> None:
+    """Migration 004 should exist to update job status values."""
+    sql = read_migration("warm/004_job_status_update.sql")
+    assert len(sql) > 0
+    assert "job_run" in sql
+
+
+def test_job_status_migration_updates_constraint() -> None:
+    """Migration 004 should update status constraint to new values."""
+    sql = read_migration("warm/004_job_status_update.sql")
+    # Should include new status values
+    assert "started" in sql
+    assert "success" in sql
+    assert "failed" in sql
+    assert "skipped" in sql
+    # Should drop old constraint and add new one
+    assert "DROP CONSTRAINT" in sql or "drop constraint" in sql.lower()
+    assert "ADD CONSTRAINT" in sql or "add constraint" in sql.lower()
+
+
+def test_job_status_migration_migrates_data() -> None:
+    """Migration 004 should migrate existing status values."""
+    sql = read_migration("warm/004_job_status_update.sql")
+    # Should update 'running' to 'started'
+    assert "'running'" in sql or "running" in sql
+    assert "'started'" in sql or "started" in sql
+    # Should update 'succeeded' to 'success'
+    assert "'succeeded'" in sql or "succeeded" in sql
+    assert "'success'" in sql or "success" in sql
+    # Should have UPDATE statements
+    assert "UPDATE read_model.job_run" in sql

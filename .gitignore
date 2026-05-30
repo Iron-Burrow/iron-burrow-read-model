@@ -2,3 +2,7 @@
 .pytest_cache/
 __pycache__/
 *.py[cod]
+.env
+.env.local
+.env.prod
+.env.production

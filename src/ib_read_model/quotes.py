@@ -27,4 +27,14 @@ def normalize_quote(value: str) -> Quote:
 def parse_quotes(value: str | None) -> list[Quote]:
     if value is None or value.strip() == "":
         return [normalize_quote("USD")]
-    return [normalize_quote(part) for part in value.split(",") if part.strip()]
+    quotes: list[Quote] = []
+    seen: set[str] = set()
+    for part in value.split(","):
+        if not part.strip():
+            continue
+        quote = normalize_quote(part)
+        if quote.currency in seen:
+            continue
+        seen.add(quote.currency)
+        quotes.append(quote)
+    return quotes

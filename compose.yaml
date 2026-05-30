@@ -48,7 +48,8 @@ services:
     environment:
       IB_READ_MODEL_HOT_DATABASE_URL: ${IB_READ_MODEL_HOT_DATABASE_URL:-postgresql://postgres:postgres@db_hot:5432/ibdb_hot}
       IB_READ_MODEL_WARM_DATABASE_URL: ${IB_READ_MODEL_WARM_DATABASE_URL:-postgresql://postgres:postgres@db_warm:5432/ibdb}
-      IB_READ_MODEL_PRICE_INDEXER_BASE_URL: ${IB_READ_MODEL_PRICE_INDEXER_BASE_URL:-http://host.docker.internal:3001}
+      IB_READ_MODEL_PRICE_INDEXER_BASE_URL: ${IB_READ_MODEL_PRICE_INDEXER_BASE_URL:-http://iron-burrow-price-indexer:3010}
+      PRICE_QL_INTERNAL_TOKEN: ${PRICE_QL_INTERNAL_TOKEN:-}
     command: ["migrate-all"]
 
   worker:
@@ -68,7 +69,8 @@ services:
     environment:
       IB_READ_MODEL_HOT_DATABASE_URL: ${IB_READ_MODEL_HOT_DATABASE_URL:-postgresql://postgres:postgres@db_hot:5432/ibdb_hot}
       IB_READ_MODEL_WARM_DATABASE_URL: ${IB_READ_MODEL_WARM_DATABASE_URL:-postgresql://postgres:postgres@db_warm:5432/ibdb}
-      IB_READ_MODEL_PRICE_INDEXER_BASE_URL: ${IB_READ_MODEL_PRICE_INDEXER_BASE_URL:-http://host.docker.internal:3001}
+      IB_READ_MODEL_PRICE_INDEXER_BASE_URL: ${IB_READ_MODEL_PRICE_INDEXER_BASE_URL:-http://iron-burrow-price-indexer:3010}
+      PRICE_QL_INTERNAL_TOKEN: ${PRICE_QL_INTERNAL_TOKEN:-}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >

@@ -1,0 +1,23 @@
+services:
+  app:
+    build:
+      context: .
+    restart: "no"
+    env_file:
+      - .env.production
+    command: ["migrate"]
+
+  worker:
+    build:
+      context: .
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        uv run --no-dev ib-read-model migrate &&
+        while true; do
+          uv run --no-dev ib-read-model refresh-all-prices;
+          sleep "$${IB_READ_MODEL_REFRESH_INTERVAL_SECONDS:-300}";
+        done

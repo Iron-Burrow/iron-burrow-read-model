@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ib-read-model-db
+    environment:
+      POSTGRES_DB: ibdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - ib_read_model_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ibdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+    container_name: ib-read-model-app
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      IB_READ_MODEL_DATABASE_URL: ${IB_READ_MODEL_DATABASE_URL:-postgresql://postgres:postgres@db:5432/ibdb}
+      IB_READ_MODEL_SOURCE_DATABASE_URL: ${IB_READ_MODEL_SOURCE_DATABASE_URL:-postgresql://postgres:postgres@db:5432/ibdb}
+      IB_READ_MODEL_PRICE_INDEXER_BASE_URL: ${IB_READ_MODEL_PRICE_INDEXER_BASE_URL:-http://host.docker.internal:3001}
+    command: ["migrate"]
+
+  worker:
+    build:
+      context: .
+    container_name: ib-read-model-worker
+    profiles:
+      - worker
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      IB_READ_MODEL_DATABASE_URL: ${IB_READ_MODEL_DATABASE_URL:-postgresql://postgres:postgres@db:5432/ibdb}
+      IB_READ_MODEL_SOURCE_DATABASE_URL: ${IB_READ_MODEL_SOURCE_DATABASE_URL:-postgresql://postgres:postgres@db:5432/ibdb}
+      IB_READ_MODEL_PRICE_INDEXER_BASE_URL: ${IB_READ_MODEL_PRICE_INDEXER_BASE_URL:-http://host.docker.internal:3001}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        uv run --no-dev ib-read-model migrate &&
+        while true; do
+          uv run --no-dev ib-read-model refresh-all-prices;
+          sleep "$${IB_READ_MODEL_REFRESH_INTERVAL_SECONDS:-300}";
+        done
+
+volumes:
+  ib_read_model_db:
